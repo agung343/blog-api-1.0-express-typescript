@@ -7,6 +7,7 @@ import mongoose from "mongoose"
 import errorHandler from "./middleware/error-handling.middleware"
 
 import feed from "./routes/feed"
+import auth from "./routes/auth"
 
 const app = express()
 
@@ -25,11 +26,14 @@ app.use(bodyParser.json())
 app.use("/images", express.static(path.join(__dirname, "images")))
 
 app.use("/feed", feed)
+app.use("/auth", auth)
 
 // handling error middleware
 app.use(errorHandler)
 
-mongoose.connect("mongodb+srv://agungwahydi34:zXGnKVjTDS9KpFrE@monitastore.8yquvad.mongodb.net/post")
+const MONGODB_URI = process.env.MONGODB_URI as string;
+
+mongoose.connect(MONGODB_URI)
 .then(result => app.listen(8080, () => console.log("Listening at port 8080")))
 .catch(error => console.log(error))
 

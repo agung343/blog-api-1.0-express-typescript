@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import fs from "fs"
+import { unlink } from "fs/promises";
 import path from "path"
 import {validationResult} from "express-validator"
 
@@ -13,9 +14,17 @@ interface Post {
 }
 
 export async function getPosts(req: Request, res: Response, next:NextFunction) {
+    // pagination if API needed, either backend or frontend pagination is do the same.
+    const currentPage: number = parseInt(req.query.page as string) || 1
+    const perPage: number = 2;
+    var totalItems;
+
     try {
-        const posts = await Post.find()
-        res.status(200).json({message: "Fetch all posts", posts: posts})
+        const count = await Post.find().countDocuments()
+        totalItems = count
+
+        const posts = await Post.find().skip((currentPage -1) * perPage).limit(perPage)
+        res.status(200).json({message: "Posts fetched", posts: posts, totalItems: totalItems})
     } catch (error) {
         if (!(error instanceof CustomError)) {
             const customError = new CustomError("An Internal server error occured", 500)
@@ -27,15 +36,19 @@ export async function getPosts(req: Request, res: Response, next:NextFunction) {
 
 export async function createNewPost(req: Request, res: Response, next:NextFunction) {
     //validators
+    const image = req.file
     const errors = validationResult(req)
+
+    if (!image) {
+        return next(new CustomError("No images Provided", 422))
+    }
+
     if (!errors.isEmpty()) {
+        await unlink(image?.path)
         const error = new CustomError("Unable process, invalid form input", 422)
         return next(error)
     }
 
-    if (!req.file) {
-        return next(new CustomError("No images Provided", 422))
-    }
 
     try {
         const {title, content} = req.body as Post;
@@ -89,7 +102,6 @@ export async function updateSinglePost(req:Request, res: Response, next: NextFun
     }
 
     let {title, content, imageUrl } = req.body as Post
-
     if (req.file) {
         imageUrl = req.file.path
     }
