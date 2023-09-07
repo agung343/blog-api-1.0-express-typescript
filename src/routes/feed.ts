@@ -39,6 +39,18 @@ router.post(
         body("title").trim().isLength({min: 5}),
         body("content").trim().isLength({min: 5})
     ], 
-    feedController.createNewPost)
+    feedController.createNewPost
+)
+
+router.put(
+    "/post/:postId",
+    [
+        body("title").trim().isLength({min: 5}),
+        body("content").trim().isLength({min: 5})
+    ], 
+    feedController.updateSinglePost
+)
+
+router.delete("/post/:postId")
 
 export default router;
