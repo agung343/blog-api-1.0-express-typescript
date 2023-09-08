@@ -5,7 +5,9 @@ import path from "path"
 import {validationResult} from "express-validator"
 
 import { Post } from "../models/Post";
+import { User } from "../models/User";
 import { CustomError } from "../exceptions/custom-error.";
+import type { CustomRequest } from "../middleware/isAuth";
 
 interface Post {
     title: string;
@@ -35,6 +37,8 @@ export async function getPosts(req: Request, res: Response, next:NextFunction) {
 }
 
 export async function createNewPost(req: Request, res: Response, next:NextFunction) {
+    const userId = (req as CustomRequest).userId
+
     //validators
     const image = req.file
     const errors = validationResult(req)
@@ -53,16 +57,29 @@ export async function createNewPost(req: Request, res: Response, next:NextFuncti
     try {
         const {title, content} = req.body as Post;
         const imageUrl = req.file?.path
+        let creator;
 
         const post = new Post({
             title: title, 
             content: content,
             imageUrl: imageUrl,
-            creator: {name: "Agung"},
+            creator: userId,
             createdAt: new Date()
         })
         await post.save()
-        res.status(201).json({message: "New Post succesfully created", post})
+
+        // relation to User.posts
+        const user = await User.findById(userId)
+        creator = user
+        user?.posts.push(post._id)
+        res.status(201).json({
+            message: "New Post succesfully created", 
+            post: post, 
+            creator: {
+                _id: creator?._id,
+                name: creator?.name
+            }
+        })
     } catch (error) {
         // handling error
         if (!(error instanceof CustomError)) {
@@ -93,6 +110,7 @@ export async function getSinglePost(req: Request, res: Response, next: NextFunct
 }
 
 export async function updateSinglePost(req:Request, res: Response, next: NextFunction) {
+    const userId = (req as CustomRequest).userId
     const postId = req.params.postId
 
     const errors = validationResult(req)
@@ -116,6 +134,10 @@ export async function updateSinglePost(req:Request, res: Response, next: NextFun
             return next(error)
         }
 
+        if (post.creator.toString() !== userId) {
+            return next(new CustomError("Not Authorized!", 403))
+        }
+
         if (imageUrl !== post.imageUrl) {
             clearImage(post.imageUrl)
         }
@@ -137,6 +159,7 @@ export async function updateSinglePost(req:Request, res: Response, next: NextFun
 }
 
 export async function deletePost(req: Request, res:Response, next: NextFunction) {
+    const userId = (req as CustomRequest).userId
     const postId = req.params.postId
 
     try{
@@ -145,13 +168,24 @@ export async function deletePost(req: Request, res:Response, next: NextFunction)
             const error = new CustomError("Could not find a post", 404)
             return next(error)
         }
+
+        if (post.creator.toString() !== userId) {
+            return next(new CustomError("Not Authorized!",403))
+        }
+
         clearImage(post?.imageUrl)
 
         const result = await Post.findByIdAndDelete(postId)
         if(!result) {
             return next(new CustomError("Could not delete post", 500))
         }
-        console.log(result)
+
+        const user = await User.findById(userId)
+        if (user) {
+            user.posts = user?.posts.filter(post => post._id.toString() !== postId)
+            await user?.save()
+        }
+        
         res.status(200).json({message: "Deleted Post"})
     } catch(error) {
         if (!(error instanceof CustomError)) {

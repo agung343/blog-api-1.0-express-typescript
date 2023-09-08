@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 
 import { User } from "../models/User";
 import { CustomError } from "../exceptions/custom-error.";
+import { CustomRequest } from "../middleware/isAuth";
 
 type UserForm = {
     name?: string;
@@ -69,5 +70,4 @@ export async function login(req: Request, res: Response, next: NextFunction) {
         }
         next(error)
     }
-    
 }
